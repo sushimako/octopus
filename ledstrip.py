@@ -11,7 +11,11 @@ def decode_pos(left, right):
 def encode_pos(pos):
     return chr((pos >> 8 ) & 0xff) + chr(pos & 0xff)
 
-def update_strip(pixels, socket, last_state=None):
+
+previous_state = None
+
+def update_strip(pixels, socket):
+    global previous_state
     # pixels is a numpy ndarray of dimension (3, 900), with 8bit R, G, and B values
     # for each of the (hardcoded) 900 LEDs. The wireformat addresses the leds by their 
     # integer address from 0-899. See https://www.pjrc.com/teensy/td_libs_OctoWS2811.html for
@@ -25,7 +29,7 @@ def update_strip(pixels, socket, last_state=None):
     # packet is what is sent over the serial to the teensy
     packet = ''
     for i in range(900):
-        if last_state is not None and np.array_equal(pixels[:, i], last_state[:, i]):
+        if previous_state is not None and np.array_equal(pixels[:, i], previous_state[:, i]):
             # nothing changed on that pixel, continue
             continue
         packet += encode_pos(i) + chr(pixels[0][i]) + chr(pixels[1][i]) + chr(pixels[2][i])
@@ -35,6 +39,7 @@ def update_strip(pixels, socket, last_state=None):
     if packet:
         # send the rest
         socket.write(packet)
+    previous_state = np.copy(pixels)
 
 
 # receives numpy arrays, convertes them into the searial wireformat and sends it over serial
@@ -45,7 +50,7 @@ class MockSerial(object):
         for i in range(0, len(packet), step):
             pos = decode_pos(packet[i:i+1], packet[i+1:i+2])
             r, g, b = [ord(val) for val in packet[i+2:i+step]]
-            #print 'setting pixel <{}> to ({} {} {})'.format(pos, r, g, b)
+            print 'setting pixel <{}> to ({} {} {})'.format(pos, r, g, b)
 
     def close(self):
         pass
