@@ -23,7 +23,7 @@ def shifter(state, prev=None, beat=False):
     return state
 
 
-def strobe(state, prev=None, beat=False, localstate=0):
+def strobe(state, prev=None, beat=False, localstate=0, color=(0xf5, 0, 0x57)):
     if localstate:
         localstate -= 1
         return state, localstate
@@ -32,8 +32,9 @@ def strobe(state, prev=None, beat=False, localstate=0):
         state.fill(0)
     if beat:
         # set all leds in our state to #f50057
-        state[0, :] = 0xf5
-        state[2, :] = 0x57
+        state[0, :] = color[0]
+        state[1, :] = color[1]
+        state[2, :] = color[2]
         # keep it for the next 4 iterations
         localstate = 4
     return state, localstate
