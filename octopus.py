@@ -2,7 +2,7 @@
 import sys
 import time
 import random
-import serial
+#import serial
 import numpy as np
 
 import dsp
@@ -78,10 +78,15 @@ def main():
     # This particular mapping stems from the way our led strips are installed and their 
     # orientation. 
     # Any arbitrary mapping is possible here. 
+    #strips = [
+    #        range(149, -1, -1) + range(150, 300), 
+    #        range(899, 749, -1) + range(600, 750),
+    #        ]
     strips = [
-            range(149, -1, -1) + range(150, 300), 
-            range(449, 299, -1) + range(450, 600),
-            range(899, 749, -1) + range(600, 750),
+            [0, 1]
+            #range(449, 299, -1),
+            #range(300, 450),
+            #range(450, 600),
             ]
 
     # we want to create effects for each mapped strip individually. Thus we need to 
@@ -90,13 +95,16 @@ def main():
 
     # initialize each strip's state with zeroes
     state1 = np.tile(0, (3, len(strips[0])))
-    state2 = np.tile(0, (3, len(strips[1])))
-    state3 = np.tile(0, (3, len(strips[2])))
+    #state2 = np.tile(0, (3, len(strips[1])))
+    #state3 = np.tile(0, (3, len(strips[2])))
 
     # some effects expect a localtate object to be passed along with each iteration. 
     # each effecn can decide what it uses it for. Check out effects.glow to see how it 
     # might be used
     localstate1 = localstate2 = None
+
+    skipbeat = beat.skip()
+    soundbeat = beat.AudioBeat()
 
     # enter mainloop
     while True:
@@ -104,20 +112,27 @@ def main():
             # decide there was a "beat" on each strip. Effects expect a beat parameter
             # and can choose to act upon it. Here we are simply creating random beats, i.e. 
             # "beat" if a random number is below an arbitrary treshold. 
-            beat1 = beat.rnd(0.05)
-            beat2 = beat.rnd(0.03)
-            beat3 = beat.rnd(0.05)
+            bands = soundbeat.bands(soundbeat.tick())
+            beat1 = skipbeat.beat(5)
+            beat2 = soundbeat.is_beat(bands)
+            #beat2 = beat.rnd(0.003)
+            #print bands
+            #beat3 = beat.rnd(0.05)
             
             # calculate this iteration's pattern for each strip
-            state1, localstate1 = effects.glow(state1, beat=beat1, localstate=localstate1, colorscheme=colors.darkblue)
-            state2 = effects.rainbow(state2, beat=beat2, colorscheme=colors.realred)
-            state3, localstate2 = effects.strobe(state3, beat=beat3, localstate=localstate2)
+            #state1, localstate1 = effects.glow(state1, beat=beat1, localstate=localstate1, colorscheme=colors.darkblue)
+            #state1 = effects.rainbow(state1, beat=beat2, colorscheme=colors.darkblue)
+            state1, localstate1 = effects.strobe(state1, beat=beat1, localstate=localstate1, color=bands)
+            #state2 = effects.rainbow(state2, beat=beat2, colorscheme=colors.darkblue)
+            #state2, localstate2 = effects.strobe(state2, beat=beat1, localstate=localstate2, color=bands)
+            #state2, localstate2 = effects.glow(state2, beat=beat2, localstate=localstate2, colorscheme=colors.darkblue)
+            #state3, localstate2 = effects.strobe(state3, beat=beat3, localstate=localstate2)
 
 
             # project the per-strip states back into the send-buffer. 
             send_buffer[:, strips[0]] = state1
-            send_buffer[:, strips[1]] = state2
-            send_buffer[:, strips[2]] = state3
+            #send_buffer[:, strips[1]] = state2
+            #send_buffer[:, strips[2]] = state3
 
             # TODO document scale_pixels
             #send_buffer[:, strips[0]] = scale_pixels(5, state2)
@@ -135,9 +150,10 @@ def main():
 
             # use this delay to slow it down. Thid delay could use some
             # magic so it will trigger every x ms 
-            #time.sleep(0.04)
+            #time.sleep(0.001)
 
         except KeyboardInterrupt:
+            soundbeat.close()
             print('abort')
             break
     socket.close()
