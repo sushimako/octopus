@@ -2,13 +2,14 @@
 import sys
 import time
 import random
-#import serial
+import serial
 import numpy as np
 
-import dsp
 import beat
 import colors
 import effects
+from audio import dsp
+from audio.utils import SoundStream
 
 from ledstrip import MockSerial, update_strip
 
@@ -83,10 +84,15 @@ def main():
     #        range(899, 749, -1) + range(600, 750),
     #        ]
     strips = [
-            [0, 1]
-            #range(449, 299, -1),
-            #range(300, 450),
-            #range(450, 600),
+            #[0, 1]
+            range(0, 150),
+            range(150, 300),
+            range(300, 450),
+            range(600, 750),
+            range(750, 900),
+            range(450, 525),
+            #range(599, 524, -1),
+            range(525, 600),
             ]
 
     # we want to create effects for each mapped strip individually. Thus we need to 
@@ -95,16 +101,34 @@ def main():
 
     # initialize each strip's state with zeroes
     state1 = np.tile(0, (3, len(strips[0])))
-    #state2 = np.tile(0, (3, len(strips[1])))
-    #state3 = np.tile(0, (3, len(strips[2])))
+    state2 = np.tile(0, (3, len(strips[1])))
+    state3 = np.tile(0, (3, len(strips[2])))
+    state4 = np.tile(0, (3, len(strips[3])))
+    state5 = np.tile(0, (3, len(strips[4])))
+    state_ring = np.tile(0, (3, len(strips[5])))
 
     # some effects expect a localtate object to be passed along with each iteration. 
     # each effecn can decide what it uses it for. Check out effects.glow to see how it 
     # might be used
-    localstate1 = localstate2 = None
+    localstate1 = localstate2 = localstate3 = localstate4 = localstate5 = localstate6 =  None
+    shifterstate = 0
+    soundstream = SoundStream()
 
-    skipbeat = beat.skip()
-    soundbeat = beat.AudioBeat()
+    def beat_gen(key, ticker):
+        return lambda: (key, ticker.tick())
+
+
+    beatmakers = [
+            beat_gen('skip5', beat.SkipCycleBeat(5)),
+            beat_gen('every20ms', beat.TimedBeat(20)),
+            beat_gen('every200ms', beat.TimedBeat(200, duration=100)),
+            beat_gen('every1000ms', beat.TimedBeat(1000)),
+            soundstream.tick, # doesn't return beat, but calculates soundprofile
+            beat_gen('lowpass', beat.LowPassBeat(soundstream)),
+            beat_gen('midpass', beat.MidPassBeat(soundstream)),
+            beat_gen('highpass', beat.HighPassBeat(soundstream, thresh=0.45)),
+            beat_gen('energy', beat.EnergyBeat(soundstream, thresh=0.4))
+            ]
 
     # enter mainloop
     while True:
@@ -112,27 +136,66 @@ def main():
             # decide there was a "beat" on each strip. Effects expect a beat parameter
             # and can choose to act upon it. Here we are simply creating random beats, i.e. 
             # "beat" if a random number is below an arbitrary treshold. 
-            bands = soundbeat.bands(soundbeat.tick())
-            beat1 = skipbeat.beat(5)
-            beat2 = soundbeat.is_beat(bands)
+            #print beatmakers
+            loop_beats = [b() for b in beatmakers if b]
+            loop_beats = dict(b for b in loop_beats if b)
+            #print loop_beats
+
             #beat2 = beat.rnd(0.003)
             #print bands
             #beat3 = beat.rnd(0.05)
             
+            bandcolor = [int(x*255.0) for x in soundstream.bands]
+            #print loop_beats['lowpass']
+            #print bandcolor
+            #print soundstream.bands
             # calculate this iteration's pattern for each strip
-            #state1, localstate1 = effects.glow(state1, beat=beat1, localstate=localstate1, colorscheme=colors.darkblue)
-            #state1 = effects.rainbow(state1, beat=beat2, colorscheme=colors.darkblue)
-            state1, localstate1 = effects.strobe(state1, beat=beat1, localstate=localstate1, color=bands)
+            #state1 = effects.rainbow(state1, beat=loop_beats['lowpass'], colorscheme=bandcolor)
+            #state1, localstate1 = effects.strobe(state1, beat=loop_beats['energy'], localstate=localstate1, color=bandcolor)
             #state2 = effects.rainbow(state2, beat=beat2, colorscheme=colors.darkblue)
             #state2, localstate2 = effects.strobe(state2, beat=beat1, localstate=localstate2, color=bands)
-            #state2, localstate2 = effects.glow(state2, beat=beat2, localstate=localstate2, colorscheme=colors.darkblue)
-            #state3, localstate2 = effects.strobe(state3, beat=beat3, localstate=localstate2)
+            #state1, localstate1 = effects.glow(state1, beat=loop_beats['energy'], localstate=localstate1, colorscheme=colors.realgreen)
+            #print loop_beats['every1000ms']
+
+            #state1, localstate1 = effects.strobe(state1, beat=loop_beats['lowpass'], localstate=localstate1, color=[0xff, 00, 00])
+            #state2, localstate2 = effects.strobe(state2, beat=loop_beats['midpass'], localstate=localstate2, color=[00, 0xff, 00])
+            #state3, localstate3 = effects.strobe(state3, beat=loop_beats['highpass'], localstate=localstate3, color=[00, 00, 0xff])
+
+            #state2, localstate2 = effects.glow(state2, beat=loop_beats['midpass'], localstate=localstate2, colorscheme=colors.ocean)
+
+            #state1, localstate1 = effects.glow(state1, beat=loop_beats['highpass'], localstate=localstate1, colorscheme=colors.ocean)
+            #state2, localstate2 = effects.glow(state2, beat=loop_beats['midpass'], localstate=localstate2, colorscheme=colors.ocean)
+
+            #state1 = effects.rainbow(state1, beat=loop_beats['lowpass'], colorscheme=colors.red)
+            #state2 = effects.rainbow(state2, beat=loop_beats['lowpass'], colorscheme=colors.red)
+            #state3 = effects.rainbow(state3, beat=loop_beats['lowpass'], colorscheme=colors.yellowgreen)
+            #state4 = effects.rainbow(state4, beat=loop_beats['highpass'], colorscheme=colors.darkblue)
+            #state5 = effects.rainbow(state5, beat=loop_beats['midpass'], colorscheme=colors.red)
+            #state6 = effects.rainbow(state6, beat=loop_beats['midpass'], colorscheme=colors.red)
+
+            state1, localstate1 = effects.glow(state1, beat=loop_beats['lowpass'], localstate=localstate1, colorscheme=colors.red)
+            state2, localstate2 = effects.glow(state2, beat=loop_beats['lowpass'], localstate=localstate2, colorscheme=colors.red)
+            state3, localstate3 = effects.glow(state3, beat=(loop_beats['lowpass'] or loop_beats['midpass']), localstate=localstate3, colorscheme=colors.red)
+            #state4, localstate4 = effects.glow(state4, beat=loop_beats['highpass'], localstate=localstate4, colorscheme=colors.darkblue)
+            state4, localstate4 = effects.glow(state4, beat=(loop_beats['lowpass'] or loop_beats['midpass']), localstate=localstate4, colorscheme=colors.red)
+            state5, localstate5 = effects.glow(state5, beat=loop_beats['lowpass'], localstate=localstate5, colorscheme=colors.red)
+
+            state_ring, localstate6 = effects.glow(state_ring, width=2, beat=(loop_beats['lowpass'] > 0.87 and not loop_beats['midpass']), localstate=localstate6, colorscheme=colors.red)
+            #state_ring, localstate6 = effects.glow(state_ring, beat=loop_beats['highpass'], localstate=localstate6, colorscheme=colors.darkblue, width=3)
+            #state_ring = effects.rainbow(state_ring, beat=loop_beats['highpass'], colorscheme=colors.darkblue)
+
+            #state1 = effects.segment_shade(state1, 2)
+            #state3, shifterstate = effects.rolling_shift(state3, localstate=shifterstate, beat=loop_beats['lowpass'])
 
 
             # project the per-strip states back into the send-buffer. 
             send_buffer[:, strips[0]] = state1
-            #send_buffer[:, strips[1]] = state2
-            #send_buffer[:, strips[2]] = state3
+            send_buffer[:, strips[1]] = state2
+            send_buffer[:, strips[2]] = state3
+            send_buffer[:, strips[3]] = state4
+            send_buffer[:, strips[4]] = state5
+            send_buffer[:, strips[5]] = state_ring
+            send_buffer[:, strips[6]] = state_ring
 
             # TODO document scale_pixels
             #send_buffer[:, strips[0]] = scale_pixels(5, state2)
@@ -150,7 +213,7 @@ def main():
 
             # use this delay to slow it down. Thid delay could use some
             # magic so it will trigger every x ms 
-            #time.sleep(0.001)
+            #time.sleep(0.01)
 
         except KeyboardInterrupt:
             soundbeat.close()
