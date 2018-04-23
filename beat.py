@@ -1,60 +1,78 @@
 import time
 import random
-import pyaudio
-import numpy as np
-from audio import utils
-from audio import config
+from datetime import timedelta
 
-class skip(object):
-    state = 0
-    def beat(self, skips):
-        self.state = (self.state+1) % 200
-        return (self.state % skips) == 0
 
-def rnd(threshold):
-    return random.random() < 0.05
-
-class AudioBeat(object):
-    stream = None
-    overflows = 0
-    prev_ovf_time = None
-    frames_per_buffer = int(config.MIC_RATE / config.FPS)
-
-    def __init__(self):
-        self.ctx = pyaudio.PyAudio()
-        self.stream = self.ctx.open(format=pyaudio.paInt16,
-                        channels=1,
-                        rate=config.MIC_RATE,
-                        input=True,
-                        frames_per_buffer=self.frames_per_buffer)
-        self.prev_ovf_time = time.time()
+class SkipCycleBeat(object):
+    def __init__(self, cycles=20):
+        self.state = 0
+        self.skip_cycles = cycles
 
     def tick(self):
-        try:
-            y = np.fromstring(self.stream.read(self.frames_per_buffer), dtype=np.int16)
-            y = y.astype(np.float32)
-            return y
-        except IOError:
-            self.overflows += 1
-            if time.time() > self.prev_ovf_time + 1:
-                self.prev_ovf_time = time.time()
-                print('Audio buffer has overflowed {} times'.format(self.overflows))
-            return []
+        self.state = (self.state+1) % self.skip_cycles
+        return 1 if self.state == 0 else 0
 
-    def bands(self, tick):
-        return utils.band_data(tick)
 
-    def is_beat(self, bands):
-        return bands[0] > 120
+class LowPassBeat(object):
+    def __init__(self, stream, thresh=0.47):
+        self.stream = stream
+        self.thresh = thresh
 
-    def close(self):
-        self.stream.stop_stream()
-        self.stream.close()
-        self.ctx.terminate()
+    def tick(self):
+        band = self.stream.bands[0]
+        return band if band > self.thresh else 0
 
-if __name__ == '__main__':
-    b = AudioBeat()
-    while True:
-        print b.bands(b.tick())
-    b.close()
+class MidPassBeat(object):
+    def __init__(self, stream, thresh=0.47):
+        self.stream = stream
+        self.thresh = thresh
+
+    def tick(self):
+        band = self.stream.bands[1]
+        return band if band > self.thresh else 0
+
+class HighPassBeat(object):
+    def __init__(self, stream, thresh=0.47):
+        self.stream = stream
+        self.thresh = thresh
+
+    def tick(self):
+        band = self.stream.bands[2]
+        return band if band > self.thresh else 0
+
+
+class RandomBeat(object):
+    def __init__(self, probability=0.05):
+        self.probability = probability
+
+    def tick(self):
+        return 1 if random.random() < self.probability else 0
+
+class TimedBeat(object):
+    def __init__(self, ms, duration=200):
+        self.ms = ms
+        self.duration = duration
+        self.last_tick = time.time() * 1000.0
+
+    def tick(self):
+        now = time.time() * 1000.0
+        if now > (self.last_tick + self.ms):
+            self.last_tick = now
+            return 1
+        if now < (self.last_tick + self.duration):
+            return 1
+        return 0
+
+
+
+
+class EnergyBeat(object):
+    def __init__(self, stream, thresh=0):
+        self.stream = stream
+        self.thresh = thresh
+
+    def tick(self):
+        val = max(self.stream.bands)
+        return val if val > self.thresh else 0
+
 
