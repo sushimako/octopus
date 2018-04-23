@@ -23,6 +23,45 @@ def shifter(state, prev=None, beat=False):
     return state
 
 
+def segment_shade(state, segments=2):
+    #state_len = len(state)
+    #segment_len= state_len / segments
+    #for idx in range(0, state_len, segment_len*2):
+    #    #print idx
+    #    state[0, idx: idx+segment_len] = 0
+    #    state[1, idx: idx+segment_len] = 0
+    #    state[2, idx: idx+segment_len] = 0
+    state[0, 0:75] = 0
+    state[1, 0:75] = 0
+    state[2, 0:75] = 0
+    return state
+
+def rolling_shift(state, localstate=0, beat=False):
+    if not beat:
+        return state, localstate
+    localstate += 1 #int(beat*4)
+    state = np.roll(state, localstate, axis=1)
+    return state, localstate
+
+def allglow(state, beat=False, localstate=0, colorscheme=colors.darkblue):
+    fade = colorscheme + colorscheme[::-1]
+    if localstate:
+        localstate -= 1
+        idx = len(fade) - localstate - 1
+        state[0, :] = fade[idx][0]
+        state[1, :] = fade[idx][1]
+        state[2, :] = fade[idx][2]
+        return state, localstate
+    else:
+        # reset state to dark
+        state.fill(0)
+    if beat:
+        localstate = len(fade)
+        state[0, :] = fade[0][0]
+        state[1, :] = fade[0][1]
+        state[2, :] = fade[0][2]
+    return state, localstate
+
 def strobe(state, prev=None, beat=False, localstate=0, color=(0xf5, 0, 0x57)):
     if localstate:
         localstate -= 1
@@ -39,13 +78,16 @@ def strobe(state, prev=None, beat=False, localstate=0, color=(0xf5, 0, 0x57)):
         localstate = 4
     return state, localstate
 
-def glow(state, prev=None, beat=False, localstate=None, colorscheme=colors.ocean):
+def glow(state, prev=None, beat=False, localstate=None, colorscheme=colors.ocean, width=1):
     if not localstate:
-        localstate = { 'up': {}, 'down':{}}
+        localstate = {}
 
+    shape_len = max(state.shape)
     if beat:
-        # initialize a  glow on a random position
-        localstate[random.choice(range(max(state.shape)))] = 1
+        ## initialize a  glow on a random position
+        #localstate[random.choice(range(max(state.shape)))] = 1
+        idx = random.choice(range(shape_len))
+        localstate[idx] = 1
 
     # we'll be modifying localstate, so make a copy before we iterate
     # over it. 
@@ -59,41 +101,9 @@ def glow(state, prev=None, beat=False, localstate=None, colorscheme=colors.ocean
             else:
                 #del localstate[idx]
                 color = [0, 0, 0]
-            state[:, idx] = color
+            state[0, idx:min(shape_len, idx+width)] = color[0]
+            state[1, idx:min(shape_len, idx+width)] = color[1]
+            state[2, idx:min(shape_len, idx+width)] = color[2]
         elif val == len(colorscheme):
             localstate[idx] = -(val-1)
     return state, localstate
-
-
-
-#sparklestate = { 'up': True }
-#def sparkle(state, prev=None, beat=False):
-#    #state[:, 1:] = state[:, :-1]
-#    if beat:
-#        print 'FLUSHIN'
-#        #state.fill(0)
-#        sparklestate['up'] = not sparklestate['up']
-#    #print state
-#    for _ in range(50):
-#        pos = (np.random.rand(1, 1)[0][0] * 899).astype(int)
-#        print pos
-#        if sparklestate['up']:
-#            #state[:, pos] = (np.random.rand(1, 3) * 255).astype(int)
-#            state[:, pos] = random.choice(colors.ocean)
-#        else:
-#            state[:, pos].fill(0)
-#    #time.sleep(0.1)
-#    return state
-#    #if beat:
-#    #    #state[:, 0] = (np.random.rand(1, 3) * 255).astype(int)
-#    #    #state[:, 0] = (np.random.rand(1, 3) * 255).astype(int)
-#    #    state[0, 0] = (np.random.rand(1, 3) * 255).astype(int)
-#    #else:
-#    #    state[:, 0] = np.tile(0, (1, 3))
-#    #return state
-
-
-            
-
-        
-        
